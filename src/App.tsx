@@ -1,3 +1,4 @@
+// v1.1.0
 import { useEffect } from 'react';
 import { useSpeechRecognition } from './hooks/useSpeechRecognition';
 import BrowserWarning from './components/BrowserWarning';
