@@ -60,7 +60,7 @@ export default function App() {
         {/* Header */}
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-neutral-100 tracking-tight">
-            Dictation <span className="text-neutral-500 font-normal">(Speech to Text)</span>
+            Dictation <span className="text-violet-400/70 font-normal">(Speech to Text)</span>
           </h1>
           <p className="text-sm text-neutral-500 mt-1">
             Speak and your words appear instantly
