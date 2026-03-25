@@ -85,15 +85,15 @@ export function useSpeechRecognition() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isListeningRef = useRef(false);
   const languageRef = useRef('en-US');
-  // Tracks the highest final-result index already appended in the current session.
-  // Prevents mobile Chrome from re-firing onresult with resultIndex=0 and
-  // re-processing already-committed results (the duplicate text bug).
-  const lastFinalIndexRef = useRef(-1);
+  // Each new recognition instance gets an incremented session ID.
+  // onresult checks its captured ID against the current one -- stale events
+  // from old instances are silently dropped (fixes mobile Chrome late-fire bug).
+  const sessionIdRef = useRef(0);
 
   const createRecognition = useCallback(() => {
     const recognition = getSpeechRecognition();
     if (!recognition) return null;
-    lastFinalIndexRef.current = -1; // Reset per-session index on every new instance
+    const sessionId = ++sessionIdRef.current; // Stamp this instance with a unique ID
 
     recognition.continuous = true;
     recognition.interimResults = true;
@@ -106,6 +106,10 @@ export function useSpeechRecognition() {
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
+      // Ignore events from a stale instance (mobile Chrome sometimes fires
+      // onresult on the old instance after a new session has already started).
+      if (sessionId !== sessionIdRef.current) return;
+
       let interim = '';
       let finalDelta = '';
 
@@ -113,9 +117,6 @@ export function useSpeechRecognition() {
         const result = event.results[i];
         const transcript = result[0].transcript;
         if (result.isFinal) {
-          // Skip if this index was already committed (mobile Chrome duplicate guard)
-          if (i <= lastFinalIndexRef.current) continue;
-          lastFinalIndexRef.current = i;
           finalDelta += transcript;
         } else {
           interim += transcript;
