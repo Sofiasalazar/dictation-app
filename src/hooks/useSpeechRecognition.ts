@@ -85,10 +85,15 @@ export function useSpeechRecognition() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isListeningRef = useRef(false);
   const languageRef = useRef('en-US');
+  // Tracks the highest final-result index already appended in the current session.
+  // Prevents mobile Chrome from re-firing onresult with resultIndex=0 and
+  // re-processing already-committed results (the duplicate text bug).
+  const lastFinalIndexRef = useRef(-1);
 
   const createRecognition = useCallback(() => {
     const recognition = getSpeechRecognition();
     if (!recognition) return null;
+    lastFinalIndexRef.current = -1; // Reset per-session index on every new instance
 
     recognition.continuous = true;
     recognition.interimResults = true;
@@ -108,6 +113,9 @@ export function useSpeechRecognition() {
         const result = event.results[i];
         const transcript = result[0].transcript;
         if (result.isFinal) {
+          // Skip if this index was already committed (mobile Chrome duplicate guard)
+          if (i <= lastFinalIndexRef.current) continue;
+          lastFinalIndexRef.current = i;
           finalDelta += transcript;
         } else {
           interim += transcript;
