@@ -128,13 +128,12 @@ export function useSpeechRecognition() {
 
     recognition.onend = () => {
       setInterimText('');
-      // Auto-restart if user hasn't stopped manually
+      // Auto-restart if user hasn't stopped manually.
+      // Always create a fresh instance to avoid mobile Chrome's stale-results bug
+      // (restarting the same instance on mobile replays old final transcripts).
       if (isListeningRef.current) {
-        try {
-          recognition.start();
-        } catch {
-          // Recognition may already be starting; ignore
-        }
+        recognitionRef.current = createRecognition();
+        recognitionRef.current?.start();
       } else {
         setIsListening(false);
       }
