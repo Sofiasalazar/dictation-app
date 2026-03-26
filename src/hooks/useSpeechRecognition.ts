@@ -61,6 +61,9 @@ function applyPunctuation(text: string): string {
   return result;
 }
 
+const isMobile = typeof navigator !== 'undefined' &&
+  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
 function getSpeechRecognition(): SpeechRecognition | null {
   if (typeof window === 'undefined') return null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -100,7 +103,7 @@ export function useSpeechRecognition() {
     if (!recognition) return null;
     const sessionId = ++sessionIdRef.current; // Stamp this instance with a unique ID
 
-    recognition.continuous = true;
+    recognition.continuous = !isMobile; // false on mobile prevents result accumulation
     recognition.interimResults = true;
     recognition.lang = languageRef.current;
     recognition.maxAlternatives = 1;
@@ -145,12 +148,16 @@ export function useSpeechRecognition() {
 
     recognition.onend = () => {
       setInterimText('');
-      // Auto-restart if user hasn't stopped manually.
-      // Always create a fresh instance to avoid mobile Chrome's stale-results bug
-      // (restarting the same instance on mobile replays old final transcripts).
       if (isListeningRef.current) {
-        recognitionRef.current = createRecognition();
-        recognitionRef.current?.start();
+        // Invalidate old session IMMEDIATELY so any late onresult events
+        // from this instance are dropped by the session ID guard before
+        // the new session starts.
+        sessionIdRef.current++;
+        setTimeout(() => {
+          if (!isListeningRef.current) return;
+          recognitionRef.current = createRecognition();
+          recognitionRef.current?.start();
+        }, isMobile ? 300 : 0); // 300ms drain window on mobile; instant on desktop
       } else {
         setIsListening(false);
       }
