@@ -85,10 +85,15 @@ export function useSpeechRecognition() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const isListeningRef = useRef(false);
   const languageRef = useRef('en-US');
-  // Each new recognition instance gets an incremented session ID.
-  // onresult checks its captured ID against the current one -- stale events
-  // from old instances are silently dropped (fixes mobile Chrome late-fire bug).
+  // Two-layer mobile Chrome duplicate guard:
+  // 1. sessionIdRef: each instance gets a unique ID; onresult from a stale
+  //    instance is dropped immediately (cross-session late-fire bug).
+  // 2. lastFinalIndexRef: tracks the highest result index already committed
+  //    in the current session; re-fired events for the same index are skipped
+  //    (intra-session duplicate bug). Reset in onstart, not during creation,
+  //    so old late-fire events still see the correct value before the reset.
   const sessionIdRef = useRef(0);
+  const lastFinalIndexRef = useRef(-1);
 
   const createRecognition = useCallback(() => {
     const recognition = getSpeechRecognition();
@@ -101,6 +106,7 @@ export function useSpeechRecognition() {
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
+      lastFinalIndexRef.current = -1; // Reset index guard when new session actually starts
       setIsListening(true);
       setError(null);
     };
@@ -117,6 +123,8 @@ export function useSpeechRecognition() {
         const result = event.results[i];
         const transcript = result[0].transcript;
         if (result.isFinal) {
+          if (i <= lastFinalIndexRef.current) continue; // Already committed this index
+          lastFinalIndexRef.current = i;
           finalDelta += transcript;
         } else {
           interim += transcript;
